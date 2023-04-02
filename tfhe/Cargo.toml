@@ -27,6 +27,7 @@ doc-comment = "0.3.3"
 bincode = "1.3.3"
 fs2 = { version = "0.4.3" }
 itertools = "0.10.5"
+test-case = "*"
 
 [build-dependencies]
 cbindgen = { version = "0.24.3", optional = true }
@@ -58,11 +59,14 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 serde-wasm-bindgen = { version = "0.4", optional = true }
 getrandom = { version = "0.2.8", optional = true }
 bytemuck = "1.13.1"
+combine = { version = "*", optional = true }
+anyhow = { version = "*", optional = true }
 
 [features]
 boolean = []
 shortint = []
 integer = ["shortint"]
+regex = ["integer", "dep:combine", "dep:anyhow"]
 internal-keycache = ["lazy_static", "fs2", "bincode"]
 
 # Experimental section
@@ -80,6 +84,8 @@ boolean-client-js-wasm-api = ["boolean", "__wasm_api"]
 shortint-client-js-wasm-api = ["shortint", "__wasm_api"]
 
 nightly-avx512 = ["concrete-fft/nightly"]
+
+gen_test_keys = []
 
 # Enable the x86_64 specific accelerated implementation of the random generator for the default
 # backend

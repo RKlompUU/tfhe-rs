@@ -31,7 +31,7 @@ The result (`ct_res` here) is an encrypted ciphertext and must therefore first
 be decrypted with the client key:
 
 ```rust
-let res = client_key.decrypt(&ct_res);
+let res: u64 = client_key.decrypt(&ct_res);
 ```
 once decrypted (`res` here), it will be either `0` for no match or `1` for a
 match.

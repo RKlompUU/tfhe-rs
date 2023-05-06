@@ -156,9 +156,11 @@ I saw two strategies (though there may be additional, potentially better, ways):
 bit of these u8 values individually.
 2. instead of encrypting each bit individually, encrypt each u8 ascii value in its
 entirety.
+
 Even though strategy 1 would require more highlevel TFHE-rs operations to check for even a simple characther match (we have to check each bit individually for equality, as opposed to checking the entire byte in 1 highlevel TFHE-rs operation),
 some experimentation did show that these options both performed relatively equally well on a regex
-like `/a/`. However, option 1 falls apart as soon as you introduce the character '[a-z]' logic.
+like `/a/`. I suppose this is because bitwise FHE operations are relatively cheap compared to u8 FHE operations.
+However, option 1 falls apart as soon as you introduce the '[a-z]' regex logic.
 Because with option 2, it's possible to complete this match with just 3 TFHE-rs operations:
 ```rust
 // note: this is pseudocode
@@ -180,10 +182,33 @@ operations than in strategy 2.
 Because FHE operations are computationally expensive, and strategy 1 requires significantly
 more FHE operations for matching on `[a-z]` regex logic, it is much better to go with strategy 2.
 
+### Matching
 
+There are a lot of regex pattern matching engines. It's been built many times.
+It's been researched thoroughly. There are different strategies possible here.
+A straight forward strategy is to directly recurse into our RegExpr value and
+apply the necessary matching operations onto the content. In a way this is nice,
+because it allows us to link the RegExpr structure directly to the matching semantics.
+Resulting in code that is easier to understand/maintain/etc.
 
+Alternatively, there exists an algorithm that transforms the AST (ie the RegExpr in our case)
+into a Deterministic Finite Automata (DFA). Normally this is a favorable
+approach in terms of efficiency, because the derived DFA can be walked over without
+needing to backtrack (whereas the former strategy cannot prevent backtracking).
+This means that the content can be walked over from character
+to character, and depending on what the character exactly is at this cursor, the
+DFA is conjuctively traveled in a definite direction which ultimately leads us to the
+`yes, there is a match` or the `no, there is no match`. There is a small upfront cost
+of having to translate the AST into the DFA, but the lack of backtracking during the
+matching generally makes up for this (especially if the content that is matched against
+is significantly big).
 
-
+In our case though we are matching on encrypted content. We have no way to know
+what the character at our cursor is, and therefore no way to find this definite
+direction to go forward to in the DFA. Therefore, I don't think that
+translating the AST into the DFA helps us the way it does in normal regex
+pattern matching engines. And for this reason I opted for the former strategy,
+because it allows for matching logic that is easier to understand.
 
 
 # How to apply the example implementation in your own code

@@ -73,16 +73,16 @@ Letter := 'a' .. 'z'
 
 With the Grammar defined, we can start defining a type to parse into. In Rust we
 have the `enum` kind of type that is perfect for this, as it allows to define
-multiple variants that may recursive. I prefer to start by defining variants that
-do not recurse (ie that don't contain nested regex expressions themselves):
+multiple variants that may recurse. I prefer to start by defining variants that
+do not recurse (ie that don't contain nested regex expressions):
 ```rust
 enum RegExpr {
-    Char { c: char },  // variant for matching against a single character (Atom.2 and Atom.3)
-    AnyChar,  // variant for matching _any_ character (Atom.1)
-    SOF,  // variant for matching only at the beginning of the content ('^' in Start.1)
-    EOF,  // variant for matching only at the end of the content (the '$' in Start.1)
-    Range { cs: Vec<char> },  // variant for matching on a list of characters (Range.3, eg '[acd]')
-    Between { from: char, to: char },  // variant for matching between 2 characters based on ascii ordering (Range.2, eg '[a-g]')
+    Char { c: char },  // matching against a single character (Atom.2 and Atom.3)
+    AnyChar,  // matching _any_ character (Atom.1)
+    SOF,  // matching only at the beginning of the content ('^' in Start.1)
+    EOF,  // matching only at the end of the content (the '$' in Start.1)
+    Range { cs: Vec<char> },  // matching on a list of characters (Range.3, eg '[acd]')
+    Between { from: char, to: char },  // matching between 2 characters based on ascii ordering (Range.2, eg '[a-g]')
 }
 ```
 
@@ -91,6 +91,7 @@ With this we would already be able to translate the following basic regexes:
 Pattern | RegExpr value
 --- | ---
 `/a/` | `RegExpr::Char { c: 'a' }`
+`/\\^/` | `RegExpr::Char { c: '^' }`
 `/./` | `RegExpr::AnyChar`
 `/^/` | `RegExpr::SOF`
 `/$/` | `RegExpr::EOF`
@@ -109,7 +110,7 @@ With this Seq (short for sequence) variant we allow translating patterns that co
 
 Pattern | RegExpr value
 --- | ---
-`/ab/` | `RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'b' }] }
+`/ab/` | `RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'b' }] }`
 `/^a.$/` | `RegExpr::Seq { re_xs: vec![RegExpr::SOF, RexExpr::Char { 'a' }, RegExpr::AnyChar, RegExpr::EOF] }`
 `/a[f-l]/` | `RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Between { from: 'f', to: 'l' }] }`
 
@@ -117,9 +118,9 @@ Lets finish the RegExpr datastructure by adding for optional matching, the not l
 ```rust
 enum RegExpr {
     ...
-    Optional { opt_re: Box<RegExpr> },  // variant for optionally matching (Factor.1)
-    Not { not_re: Box<RegExpr> },  // variant for matching inversely on a range (Range.1)
-    Either { l_re: Box<RegExpr>, r_re: Box<RegExpr> },  // variant for matching the left or right regex (Regex.1)
+    Optional { opt_re: Box<RegExpr> },  // matching optionally (Factor.1)
+    Not { not_re: Box<RegExpr> },  // matching inversely on a range (Range.1)
+    Either { l_re: Box<RegExpr>, r_re: Box<RegExpr> },  // matching the left or right regex (Regex.1)
 }
 ```
 
@@ -130,8 +131,8 @@ Pattern | RegExpr value
 `/a?/` | `RegExpr::Optional { opt_re: Box::new(RegExpr::Char { c: 'a' }) }`
 `/[a-d]?/` | `RegExpr::Optional { opt_re: Box::new(RegExpr::Between { from: 'a', to: 'd' }) }`
 `/[^ab]/` | `RegExpr::Not { not_re: Box::new(RegExpr::Range { cs: vec!['a', 'b'] }) }`
-`/av|d?/` | `RegExpr::Either { l_re: Box::new(RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'v' }] }), r_re: Box::new(RegExpr::Optional { opt_re: Box::new(RegExpr::Char { c: 'd' }) }) }`
-`/(av|d)?/` | `RegExpr::Optional { opt_re: Box::new(RegExpr::Either { l_re: Box::new(RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'v' }] }), r_re: Box::new(RegExpr::Char { c: 'd' }) }) }`
+`/av\|d?/` | `RegExpr::Either { l_re: Box::new(RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'v' }] }), r_re: Box::new(RegExpr::Optional { opt_re: Box::new(RegExpr::Char { c: 'd' }) }) }`
+`/(av\|d)?/` | `RegExpr::Optional { opt_re: Box::new(RegExpr::Either { l_re: Box::new(RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'v' }] }), r_re: Box::new(RegExpr::Char { c: 'd' }) }) }`
 
 With the Grammar defined, and the datastructure to parse into defined, we can now start implementing the actual parsing logic. There are many ways this can be done. For example there exist tools that can automatically generate code by giving it the Grammar definition (these are called parser generators). However, I prefer to write parsers myself with a parser combinator library, as in my opinion the behavior in runtime is better understandable of these than of parsers that were automatically generated.
 

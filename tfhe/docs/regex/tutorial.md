@@ -228,7 +228,7 @@ fn match(
     content: &StringCipherText,
     re: &RegExpr,
     content_pos: usize,
-) -> (ResultCiphertext, usize) {
+) -> Vec<(ResultCiphertext, usize)> {
     let content_char = &content[c_pos];
     match re {
         ...
@@ -239,20 +239,28 @@ fn match(
 `sk` is the server key (aka public key),`content` is what we'll be matching
 against, `re` is the RegExpr value we built when parsing the regex, and `c_pos`
 is the cursor position (the index in content we are currently matching
-against). The result type is a tuple, first the so far computed ciphertext
-result, second the content position after the regex components were applied. On
-first call to `match` the entire regex pattern is matched starting with
+against).
+
+The result is a vector of tuples, with first value of the tuple the so far
+computed ciphertext result, and second value the content position after the
+regex components were applied.  It's a vector, because certain RegExpr variants
+require to consider a list of possible execution paths. For example, the
+RegExpr::Optional might succeed by applying _or_ by *not* applying the optinoal
+regex (notice that in the former case `c_pos` moves forward whereas in the
+latter case it stays put).
+
+On first call to `match` the entire regex pattern is matched starting with
 `c_pos=0`, then `match` is called again for the entire regex pattern with
 `c_pos=1`, etc. until `c_pos` exceeds the length of the content. Each of these
 alternative matches results are then joined together with `sk.bitor` operations
 (this works out correctly because if 1 of them results in true, then this means
 our matching algorithm in general should return true).
 
-The `...` within the match statement above is what we will be working out for each
-RegExpr variant now. Starting with `RegExpr::Char`:
+The `...` within the match statement above is what we will be working out for
+some of the RegExpr variants now. Starting with `RegExpr::Char`:
 ```rust
 case RegExpr::Char { c } => {
-    return sk.eq(content_char, c);
+    vec![(sk.eq(content_char, c), c_pos + 1)]
 },
 ```
 
@@ -281,9 +289,11 @@ case RegExpr::AnyChar => {
 Sequence iterates over its `re_xs`, increasing the content position accordingly, and joins the results with `bitand` operations:
 ```rust
 case RegExpr::Seq { re_xs } => {
-    re_xs.iter().fold(|(prev_res, prev_c_pos), re_x| {
-        (x_res, new_c_pos) = match(sk, content, re_x, prev_c_pos);
-        (sk.bitand(prev_res, x_res), new_c_pos)
+    re_xs.iter().fold(|prev_results, re_x| {
+        prev_results.iter().flat_map(|(prev_res, prev_c_pos)| {
+            (x_res, new_c_pos) = match(sk, content, re_x, prev_c_pos);
+            (sk.bitand(prev_res, x_res), new_c_pos)
+        })
     }, (ct_true, c_pos))
 },
 ```
@@ -291,6 +301,13 @@ case RegExpr::Seq { re_xs } => {
 Other variants are similar, they recurse and manipulate `re` and `c_pos` accordingly.
 Hopefully the general idea is already clear.
 
+Ultimately the entire pattern matching logic collapses in a sequence of just the
+following set of FHE operations:
+1. eq (tests for an exact character match)
+2. ge (tests for greater than or equal to a character)
+3. le (tests for less than or equal to a character)
+4. bitand (bitwise AND, used for sequencing multiple regex components)
+5. bitor
 
 # How to apply the example implementation in your own code
 

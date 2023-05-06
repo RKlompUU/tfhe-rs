@@ -14,13 +14,13 @@ There actually exists a language that can help us describe exactly what our own 
 
 ## The Grammar and Datastructure
 
-A Grammar consists of (generally a small) set of rules. For example, a very basic Grammar could look like this:
+A Grammar consists of a (generally small) set of rules. For example, a very basic Grammar could look like this:
 ```
 Start := 'a'
 ```
 this describes a language that only contains the sentence "a". Not a very interesting language.
 
-We can make it more interesting though by introducing choice into the grammar with \| operators. If we want the above grammar to accept either "a" or "b":
+We can make it more interesting though by introducing choice into the grammar with \| (called a 'pipe') operators. If we want the above grammar to accept either "a" or "b":
 ```
 Start := 'a' | 'b'
 ```
@@ -103,7 +103,7 @@ the first variant that captures recursive RegExpr for this:
 ```rust
 enum RegExpr {
     ...
-    Seq { re_xs: Vec<RegExpr> },  // variant for matching sequences of RegExpr components (Term.1)
+    Seq { re_xs: Vec<RegExpr> },  // matching sequences of RegExpr components (Term.1)
 }
 ```
 With this Seq (short for sequence) variant we allow translating patterns that contain multiple components:
@@ -134,15 +134,57 @@ Pattern | RegExpr value
 `/av\|d?/` | `RegExpr::Either { l_re: Box::new(RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'v' }] }), r_re: Box::new(RegExpr::Optional { opt_re: Box::new(RegExpr::Char { c: 'd' }) }) }`
 `/(av\|d)?/` | `RegExpr::Optional { opt_re: Box::new(RegExpr::Either { l_re: Box::new(RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'v' }] }), r_re: Box::new(RegExpr::Char { c: 'd' }) }) }`
 
-With the Grammar defined, and the datastructure to parse into defined, we can now start implementing the actual parsing logic. There are many ways this can be done. For example there exist tools that can automatically generate code by giving it the Grammar definition (these are called parser generators). However, I prefer to write parsers myself with a parser combinator library, as in my opinion the behavior in runtime is better understandable of these than of parsers that were automatically generated.
+With both the Grammar and the datastructure to parse into defined, we can now start implementing the actual parsing logic. There are many ways this can be done. For example there exist tools that can automatically generate code by giving it the Grammar definition (these are called parser generators). However, I prefer to write parsers myself with a parser combinator library, as in my opinion the behavior in runtime is better understandable of these than of parsers that were automatically generated.
 
 In Rust there exist a number of popular parser combinator libraries, I went with `combine` but any other would work just as well. Choose whichever appeals the most to you. The implementation of our regex parser will differ significantly depending on the approach you choose and as such I think it is better to omit this part from the tutorial. You may look at the parser code in the example implementation to get an idea on how this could be done.
 
+## Matching the RegExpr to Encrypted Content
+
+The next challenge is to build the execution engine, where we take a RegExpr
+value and recurse into it to apply the necessary actions on the encrypted content.
+
+### Encoding and Encrypting the Content
+
+We first have to define how we actually encode our content into an encrypted state.
+It is not possible to encrypt the entire content into a single encrypted value,
+we can only encrypt numbers and do operations on those encrypted numbers with FHE.
+Therefore we have to find a scheme where we encode the content into a sequence of
+numbers that then are encrypted individually, to form a sequence of encrypted numbers.
+
+I saw two strategies (though there may be additional, potentially better, ways):
+1. map each character of the content into the u8 ascii value, and then encrypt each
+bit of these u8 values individually.
+2. instead of encrypting each bit individually, encrypt each u8 ascii value in its
+entirety.
+Even though strategy 1 would require more highlevel TFHE-rs operations to check for even a simple characther match (we have to check each bit individually for equality, as opposed to checking the entire byte in 1 highlevel TFHE-rs operation),
+some experimentation did show that these options both performed relatively equally well on a regex
+like `/a/`. However, option 1 falls apart as soon as you introduce the character '[a-z]' logic.
+Because with option 2, it's possible to complete this match with just 3 TFHE-rs operations:
+```rust
+// note: this is pseudocode
+c       = <the encrypted character under inspection>;
+sk      = <the server key, aka the public key>
+
+ge_from = sk.ge(c, 'a');
+le_to   = sk.le(c, 'z');
+result  = sk.bitand(ge_from, le_to);
+```
+`ge`, `le`, and `bitand` are the 3 cryptographic operations here.
+
+If on the other hand we had encrypted the content with the first strategy, there would
+be no way to test for `greater/equal than from` and `less/equal than to`. We'd have to
+check for potential equality of each character between `from` and `to`, and then
+join the results together with a sequence of `sk.bitor`; way more cryptographic
+operations than in strategy 2.
+
+Because FHE operations are computationally expensive, and strategy 1 requires significantly
+more FHE operations for matching on `[a-z]` regex logic, it is much better to go with strategy 2.
 
 
-Any pattern matching engine has to
 
-Building a Regex engine for matching against
+
+
+
 
 # How to apply the example implementation in your own code
 

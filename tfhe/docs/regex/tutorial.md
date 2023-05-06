@@ -260,14 +260,16 @@ Lets consider an example of above's variant, if we apply `/a/` to content `bac`,
 we'd have the following list of `match` calls' `re` and `c_pos` values (for simplicity
 `re` is denoted in regex pattern instead of in RegExpr value):
 
-`re` | `c_pos` | Ciphertext operation
+re | c\_pos | Ciphertext operation
 --- | --- | ---
-`/a/` | `0` | `sk.eq(content[0], a)`
-`/a/` | `1` | `sk.eq(content[1], a)`
-`/a/` | `2` | `sk.eq(content[2], a)`
+/a/ | 0 | sk.eq(content[0], a)
+/a/ | 1 | sk.eq(content[1], a)
+/a/ | 2 | sk.eq(content[2], a)
 
 And we would arrive at the following sequence of Ciphertext operations:
-`sk.bitor(sk.bitor(sk.eq(content[0], a), sk.eq(content[1], a)), sk.eq(content[1], a))`
+```
+sk.bitor(sk.eq(content[1], a), sk.bitor(sk.eq(content[0], a), sk.eq(content[1], a)))
+```
 
 AnyChar is a no operation:
 ```rust

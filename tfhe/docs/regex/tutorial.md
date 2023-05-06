@@ -182,10 +182,10 @@ operations than in strategy 2.
 Because FHE operations are computationally expensive, and strategy 1 requires significantly
 more FHE operations for matching on `[a-z]` regex logic, it is much better to go with strategy 2.
 
-### Matching
+### Matching with the AST Versus Matching with a derived DFA
 
-There are a lot of regex pattern matching engines. It's been built many times.
-It's been researched thoroughly. There are different strategies possible here.
+There are a lot of regex pattern matching engines. It's been built many times and
+it's been researched thoroughly. There are different strategies possible here.
 A straight forward strategy is to directly recurse into our RegExpr value and
 apply the necessary matching operations onto the content. In a way this is nice,
 because it allows us to link the RegExpr structure directly to the matching semantics.
@@ -209,6 +209,85 @@ direction to go forward to in the DFA. Therefore, I don't think that
 translating the AST into the DFA helps us the way it does in normal regex
 pattern matching engines. And for this reason I opted for the former strategy,
 because it allows for matching logic that is easier to understand.
+
+### Matching
+
+In the previous section we decided we'll match by traversing into the RegExpr value.
+This section will explain exactly how to do that. Similarly to defining the
+Grammar, I find it is best to start with working out the non recursive RegExpr
+variants.
+
+We'll start by defining the function that will recursively traverse into the RegExpr value:
+```rust
+
+type StringCiphertext = Vec<RadixCiphertextBig>;
+type ResultCiphertext = RadixCiphertextBig;
+
+fn match(
+    sk: &ServerKey,
+    content: &StringCipherText,
+    re: &RegExpr,
+    content_pos: usize,
+) -> (ResultCiphertext, usize) {
+    let content_char = &content[c_pos];
+    match re {
+        ...
+    }
+}
+```
+
+`sk` is the server key (aka public key),`content` is what we'll be matching
+against, `re` is the RegExpr value we built when parsing the regex, and `c_pos`
+is the cursor position (the index in content we are currently matching
+against). The result type is a tuple, first the so far computed ciphertext
+result, second the content position after the regex components were applied. On
+first call to `match` the entire regex pattern is matched starting with
+`c_pos=0`, then `match` is called again for the entire regex pattern with
+`c_pos=1`, etc. until `c_pos` exceeds the length of the content. Each of these
+alternative matches results are then joined together with `sk.bitor` operations
+(this works out correctly because if 1 of them results in true, then this means
+our matching algorithm in general should return true).
+
+The `...` within the match statement above is what we will be working out for each
+RegExpr variant now. Starting with `RegExpr::Char`:
+```rust
+case RegExpr::Char { c } => {
+    return sk.eq(content_char, c);
+},
+```
+
+Lets consider an example of above's variant, if we apply `/a/` to content `bac`,
+we'd have the following list of `match` calls' `re` and `c_pos` values (for simplicity
+`re` is denoted in regex pattern instead of in RegExpr value):
+
+`re` | `c_pos` | Ciphertext operation
+--- | --- | ---
+`/a/` | `0` | `sk.eq(content[0], a)`
+`/a/` | `1` | `sk.eq(content[1], a)`
+`/a/` | `2` | `sk.eq(content[2], a)`
+
+And we would arrive at the following sequence of Ciphertext operations:
+`sk.bitor(sk.bitor(sk.eq(content[0], a), sk.eq(content[1], a)), sk.eq(content[1], a))`
+
+AnyChar is a no operation:
+```rust
+case RegExpr::AnyChar => {
+    return ct_true; // just some constant representing True that is trivially encoded into ciphertext
+}
+```
+
+Sequence iterates over its `re_xs`, increasing the content position accordingly, and joins the results with `bitand` operations:
+```rust
+case RegExpr::Seq { re_xs } => {
+    re_xs.iter().fold(|(prev_res, prev_c_pos), re_x| {
+        (x_res, new_c_pos) = match(sk, content, re_x, prev_c_pos);
+        (sk.bitand(prev_res, x_res), new_c_pos)
+    }, (ct_true, c_pos))
+},
+```
+
+Other variants are similar, they recurse and manipulate `re` and `c_pos` accordingly.
+Hopefully the general idea is already clear.
 
 
 # How to apply the example implementation in your own code

@@ -282,7 +282,8 @@ sk.bitor(sk.eq(content[1], a), sk.bitor(sk.eq(content[0], a), sk.eq(content[1], 
 AnyChar is a no operation:
 ```rust
 case RegExpr::AnyChar => {
-    return ct_true; // just some constant representing True that is trivially encoded into ciphertext
+    // note: ct_true is just some constant representing True that is trivially encoded into ciphertext
+    return vec![(ct_true, c_pos + 1)];
 }
 ```
 
@@ -301,13 +302,21 @@ case RegExpr::Seq { re_xs } => {
 Other variants are similar, they recurse and manipulate `re` and `c_pos` accordingly.
 Hopefully the general idea is already clear.
 
-Ultimately the entire pattern matching logic collapses in a sequence of just the
+Ultimately the entire pattern matching logic unfolds into a sequence of just the
 following set of FHE operations:
 1. eq (tests for an exact character match)
 2. ge (tests for greater than or equal to a character)
 3. le (tests for less than or equal to a character)
 4. bitand (bitwise AND, used for sequencing multiple regex components)
-5. bitor
+5. bitor (bitwise OR, used for folding multiple possible matching execution variants' results into a single result)
+
+### Optimizations
+
+Generally the included example PME follows above approach. However, there were
+two additional optimizations applied. Both of these optimizations involved
+reducing a number of unnecessary FHE operations.
+
+
 
 # How to apply the example implementation in your own code
 

@@ -82,11 +82,12 @@ Operator | Example | Semantics
 `*` | a* | match a any amount of times (including zero times)
 `?` | a? | optionally match a (match 0 or 1 time)
 `.` | .  | match any character
+`..` | a .. b | match on a range of alphabetically ordered characters from a to (and including) b
 ` ` | a b | sequencing; match on a and then on b
 
 In the case of the example PME the grammar is as follows (notice the unquoted ? and quoted ? etc., the unqouted are Grammar operators and the quoted are characters we are matching in the parsing)
 ```
-Start := '/' '^'? Regex '$'? '/'
+Start := '/' '^'? Regex '$'? '/' Modifier?
 
 Regex := Term '|' Term
        | Term
@@ -119,6 +120,8 @@ Character := Letter
 
 Letter := 'a' .. 'z'
         | 'A' .. 'Z'
+
+Modifier := 'i'
 ```
 Below will refer occasionally to specific parts in the Grammar above by \<rule name\>.\<variant index\> (where the first rule variant has index 1).
 
@@ -176,6 +179,16 @@ enum RegExpr {
     Either { l_re: Box<RegExpr>, r_re: Box<RegExpr> },  // matching the left or right regex (Regex.1)
 }
 ```
+
+Some features may make most sense to be implemented through post processing of
+the parsed datastructure. For example, the case insensitivity feature (the `i`
+Modifier) is implemented in the example implementation by taking the parsed
+RegExpr, and mutating every character mentioned inside to cover both the lower
+case as well as the upper case variant (see function `case_insensitive` in
+`parser.rs` for the example implementation of this).
+
+The modifier `i` in our Grammar (for enabling case insensitivity) seemed easiest
+to implement by applying a post processing step to the parser.
 
 We are now able to translate any complex regex into a RegExpr value. For example:
 

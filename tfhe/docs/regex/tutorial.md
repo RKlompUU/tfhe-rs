@@ -10,14 +10,14 @@ characters (eg, your Browser's default search function does this). Regex PME
 are more powerful, it allows to search on certain structures of text (where a
 structure may take form in multiple possible sequences of characters). The
 structure to be searched for is defined with the regex, a very concise
-language. Some example regexes to give some idea of what is possible:
+language. Here are some example regexes to give some idea of what is possible:
 
 Regex | Semantics
 --- | ---
-/abc/ | Searches for the sequence `abc`
+/abc/ | Searches for the sequence `abc` (equivalent to the simple text search)
 /^abc/ | Searches for the sequence `abc` at the beginning of the content
-/a?bc/ | Searches for sequences `abc` and `bc`
-/ab\|c+d/ | Searches for sequences of `ab` and `c` repeated 1 or more times followed by `d`
+/a?bc/ | Searches for sequences `abc`, `bc`
+/ab\|c+d/ | Searches for sequences of `ab`, `c` repeated 1 or more times followed by `d`
 
 Regexes are powerful enough to be able to express structures like email address
 formats. Capability like this is what makes regexes useful for many programming
@@ -34,10 +34,10 @@ There are two main components identifiable in a PME:
 Parsing is a well understood problem. There are a couple of different
 approaches possible here.  Regardless of the approach chosen, it starts with
 figuring out what the language is that we want to support. That is, what are
-the kinds of sentences that we want our regex language include?  A few example
-sentences we definitely want to support are for example: `/a/`, `/a?bc/`,
-`/^ab$/`, `/ab|cd/`, however example sentences don't suffice here as a
-specification because they can never be exhaustive (they're endless). We need
+the kinds of sentences that we want our regex language to include?  A few
+example sentences we definitely want to support are for example: `/a/`,
+`/a?bc/`, `/^ab$/`, `/ab|cd/`, however example sentences don't suffice here as
+a specification because they can never be exhaustive (they're endless). We need
 something to specify _exactly_ the full set of sentences our language supports.
 There exists a language that can help us describe exactly what our own
 language's structure is: Grammars.
@@ -60,11 +60,11 @@ either "a" or "b":
 Start := 'a' | 'b'
 ```
 
-So far only Grammars with a single start rule have been shown. However, a
-Grammar can consist of multiple rules. And in fact, most languages require to
-be defined over multiple rules. Lets consider a more meaningful language, one
-that accepts sentences consisting of one or more digits, we could describe such
-a language with the following Grammar:
+So far only Grammars with a single rule have been shown. However, a Grammar can
+consist of multiple rules. And in fact, most languages require to be defined
+over multiple rules. Lets consider a more meaningful language, one that accepts
+sentences consisting of one or more digits, we could describe such a language
+with the following Grammar:
 ```
 Start := Digit+
 
@@ -84,7 +84,7 @@ Operator | Example | Semantics
 `.` | .  | match any character
 ` ` | a b | sequencing; match on a and then on b
 
-In the case of the example PME the grammar is as follows (apologies for the mixture of special tokens between the Grammar language and the pattern language, notice the quoted variants ...)
+In the case of the example PME the grammar is as follows (notice the unquoted ? and quoted ? etc., the unqouted are Grammar operators and the quoted are characters we are matching in the parsing)
 ```
 Start := '/' '^'? Regex '$'? '/'
 
@@ -120,6 +120,7 @@ Character := Letter
 Letter := 'a' .. 'z'
         | 'A' .. 'Z'
 ```
+Below will refer occasionally to specific parts in the Grammar above by \<rule name\>.\<variant index\> (where the first rule variant has index 1).
 
 With the Grammar defined, we can start defining a type to parse into. In Rust we
 have the `enum` kind of type that is perfect for this, as it allows to define
@@ -165,8 +166,8 @@ Pattern | RegExpr value
 `/^a.$/` | `RegExpr::Seq { re_xs: vec![RegExpr::SOF, RexExpr::Char { 'a' }, RegExpr::AnyChar, RegExpr::EOF] }`
 `/a[f-l]/` | `RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Between { from: 'f', to: 'l' }] }`
 
-Lets finish the RegExpr datastructure by adding for optional matching, the not
-logic in a range, and the either left or right matching:
+Lets finish the RegExpr datastructure by adding variants for optional matching,
+the not logic in a range, and the either left or right matching:
 ```rust
 enum RegExpr {
     ...
@@ -196,10 +197,12 @@ parsers that were automatically generated.
 
 In Rust there exist a number of popular parser combinator libraries, I went
 with `combine` but any other would work just as well. Choose whichever appeals
-the most to you. The implementation of our regex parser will differ
-significantly depending on the approach you choose and as such I think it is
-better to omit this part from the tutorial. You may look at the parser code in
-the example implementation to get an idea on how this could be done.
+the most to you (including any parser generator tool). The implementation of
+our regex parser will differ significantly depending on the approach you choose
+and as such I think it is better to omit this part from the tutorial. You may
+look at the parser code in the example implementation to get an idea on how
+this could be done. In general though the Grammar and the datastructure are
+the important components, the parser code follows directly from these.
 
 ## Matching the RegExpr to Encrypted Content
 
@@ -251,8 +254,8 @@ than to`. We'd have to check for potential equality of each character between
 `sk.bitor`; way more cryptographic operations than in strategy 2.
 
 Because FHE operations are computationally expensive, and strategy 1 requires
-significantly more FHE operations for matching on `[a-z]` regex logic, it is
-much better to go with strategy 2.
+significantly more FHE operations for matching on `[a-z]` regex logic, we
+should opt for strategy 2.
 
 ### Matching with the AST Versus Matching with a derived DFA
 
@@ -318,8 +321,8 @@ The result is a vector of tuples, with first value of the tuple the so far
 computed ciphertext result, and second value the content position after the
 regex components were applied.  It's a vector, because certain RegExpr variants
 require to consider a list of possible execution paths. For example, the
-RegExpr::Optional might succeed by applying _or_ by *not* applying the optinoal
-regex (notice that in the former case `c_pos` moves forward whereas in the
+RegExpr::Optional might succeed by applying _or_ by *not* applying the optional
+regex (and notice that in the former case `c_pos` moves forward whereas in the
 latter case it stays put).
 
 On first call to `match` the entire regex pattern is matched starting with
@@ -349,7 +352,7 @@ re | c\_pos | Ciphertext operation
 
 And we would arrive at the following sequence of Ciphertext operations:
 ```
-sk.bitor(sk.eq(content[1], a), sk.bitor(sk.eq(content[0], a), sk.eq(content[1], a)))
+sk.bitor(sk.eq(content[0], a), sk.bitor(sk.eq(content[1], a), sk.eq(content[2], a)))
 ```
 
 AnyChar is a no operation:
@@ -382,8 +385,8 @@ the following set of FHE operations:
 2. ge (tests for greater than or equal to a character)
 3. le (tests for less than or equal to a character)
 4. bitand (bitwise AND, used for sequencing multiple regex components)
-5. bitor (bitwise OR, used for folding multiple possible matching execution
-   variants' results into a single result)
+5. bitor (bitwise OR, used for folding multiple possible execution variants'
+   results into a single result)
 
 ### Optimizations
 
@@ -391,7 +394,8 @@ Generally the included example PME follows above approach. However, there were
 two additional optimizations applied. Both of these optimizations involved
 reducing the number of unnecessary FHE operations. I think that given how
 computationally expensive these operations are, it only makes sense to optimize
-for this (and to for example ignore any suboptimal memory usage, etc.).
+for this (and to for example ignore any suboptimal memory usage of our PME,
+etc.).
 
 The first optimization involved delaying execution of FHE operations to _after_
 generation of all the possible execution paths that have to be considered. This

@@ -9,12 +9,16 @@ There are two main components identifiable in a pattern matching engine (PME):
 2. this AST has to then be applied to the text that is to be matched against, resulting in a yes or no to whether the pattern matched (and in the case of our FHE implementation, this result is an encrypted yes or an encrypted no)
 
 Parsing is a well understood problem. There are a couple of different approaches possible here.
-Regardless of the approach chosen, it starts with figuring out what the language is that we want to support.
-There actually exists a language that can help us describe exactly what our own language's structure is: Grammars.
+Regardless of the approach chosen, it starts with figuring out what the language is that we want to support. That is, what are the kinds of sentences that we want our regex language include?
+A few example sentences we definitely want to support are for example: `/a/`, `/a?bc/`, `/^ab$/`, `/ab|cd/`, however example sentences don't suffice here as a specification because they can never be exhaustive (they're endless). We need something to specify _exactly_ the full set of sentences our language suppoorts.
+There exists a language that can help us describe exactly what our own language's structure is: Grammars.
 
 ## The Grammar and Datastructure
 
-A Grammar consists of a (generally small) set of rules. For example, a very basic Grammar could look like this:
+It is useful to start with defining the Grammar before starting to write
+the code for the parser. Because the code structure follows directly from the
+Grammar. A Grammar consists of a (generally small) set of rules. For example,
+a very basic Grammar could look like this:
 ```
 Start := 'a'
 ```
@@ -33,6 +37,19 @@ Start := Digit+
 
 Digit := '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 ```
+
+The `+` above after `Digit` is another Grammar operator. With it we specify that
+Digit must be matched 1 or more times. Here are all the Grammar operators that
+are relevant here:
+
+Operator | Example | Semantics
+--- | --- | ---
+`\|` | a \| b | we first try matching on a, on no match we try to match on b
+`+` | a+ | match a 1 or more times
+`*` | a* | match a any amount of times (including zero times)
+`?` | a? | optionally match a (match 0 or 1 time)
+`.` | .  | match any character
+` ` | a b | sequencing; match on a and then on b
 
 In the case of the example PME the grammar is as follows (apologies for the mixture of special tokens between the Grammar language and the pattern language, notice the quoted variants ...)
 ```
@@ -320,22 +337,21 @@ for this (and to for example ignore any suboptimal memory usage, etc.).
 
 The first optimization involved delaying execution of FHE operations to _after_
 generation of all the possible execution paths that have to be considered. This
-optimization allows us to prune execution paths that during this execution path
-construction are provably going to result in an encrypted false value, without
+optimization allows us to prune execution paths during execution path
+construction that are provably going to result in an encrypted false value, without
 having already performed the FHE operations up to the point of pruning. Consider
-for example the regex `/a+b$/`, and we are applying this to a content of size 4.
-If we're building execution paths naively, we would go ahead and check for all
+for example the regex `/^a+b$/`, and we are applying this to a content of size 4.
+If we're executing execution paths naively, we would go ahead and check for all
 possible amount of `a` repetitions: `ab`, `aab`, `aaab`.
-However, while building the execution paths, we can use the fact that `b` must
-be the final character of the content. In other words, `content[3] == b` is the
-only FHE operation we have to perform wrt the final part of the regex pattern.
-From this follows that we only have to check for the following sentence: `aaab`.
-Delaying execution of the FHE operations til after we've built the possible
-execution paths in this example reduced the number of FHE operations applied by
-half approximately!
+However, while building the execution paths, we can use the fact that `a+` must
+begin at the beginning of the content, and that `b` must be the final character
+of the content. From this follows that we only have to check for the following
+sentence: `aaab`.  Delaying execution of the FHE operations til after we've
+built the possible execution paths in this example reduced the number of FHE
+operations applied by half approximately!
 
 The second optimization involved preventing the same FHE conditions to be
-reverified. Consider the regex `/^a?ab/`, this'd give us the following possible
+re-evaluated. Consider the regex `/^a?ab/`, this would give us the following possible
 execution paths that must be considered:
 1. `content[0] == a && content[1] == a && content[2] == b` (we match the `a` in `a?`)
 2. `content[0] == a && content[1] == b` (we don't match the `a` in `a?`)
@@ -345,7 +361,7 @@ Even though we cannot see what the encrypted result is, we do know that it's
 either going to be an encrypted false for both cases or an encrypted true for
 both cases. Therefore, we can skip the re-evaluation of `content[0] == a` and
 simply copy the result from the first evaluation over. This optimization
-involved maintaing a cache of known expression evaluations' results, and reusing
+involved maintaining a cache of known expression evaluations' results, and reusing
 those where possible.
 
 # How to apply the example implementation in your own code

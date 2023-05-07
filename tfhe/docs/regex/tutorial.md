@@ -490,3 +490,11 @@ fn main(content: &str, pattern: &str) {
     println!("res: {:?}", res);
 }
 ```
+
+## Build tips
+
+1. In my experience, running executables built with `cargo install --path .`
+   perform significantly better than executables built with `cargo
+   build`/`cargo run`.
+2. Make sure to enable the `regex` feature of tfhe-rs in your Cargo.toml when
+   including the tfhe-rs dependency.

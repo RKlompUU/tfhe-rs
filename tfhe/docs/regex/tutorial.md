@@ -314,9 +314,39 @@ following set of FHE operations:
 
 Generally the included example PME follows above approach. However, there were
 two additional optimizations applied. Both of these optimizations involved
-reducing a number of unnecessary FHE operations.
+reducing the number of unnecessary FHE operations. I think that given how
+computationally expensive these operations are, it only makes sense to optimize
+for this (and to for example ignore any suboptimal memory usage, etc.).
 
+The first optimization involved delaying execution of FHE operations to _after_
+generation of all the possible execution paths that have to be considered. This
+optimization allows us to prune execution paths that during this execution path
+construction are provably going to result in an encrypted false value, without
+having already performed the FHE operations up to the point of pruning. Consider
+for example the regex `/a+b$/`, and we are applying this to a content of size 4.
+If we're building execution paths naively, we would go ahead and check for all
+possible amount of `a` repetitions: `ab`, `aab`, `aaab`.
+However, while building the execution paths, we can use the fact that `b` must
+be the final character of the content. In other words, `content[3] == b` is the
+only FHE operation we have to perform wrt the final part of the regex pattern.
+From this follows that we only have to check for the following sentence: `aaab`.
+Delaying execution of the FHE operations til after we've built the possible
+execution paths in this example reduced the number of FHE operations applied by
+half approximately!
 
+The second optimization involved preventing the same FHE conditions to be
+reverified. Consider the regex `/^a?ab/`, this'd give us the following possible
+execution paths that must be considered:
+1. `content[0] == a && content[1] == a && content[2] == b` (we match the `a` in `a?`)
+2. `content[0] == a && content[1] == b` (we don't match the `a` in `a?`)
+
+Notice that for both execution paths we are checking for `content[0] == a`.
+Even though we cannot see what the encrypted result is, we do know that it's
+either going to be an encrypted false for both cases or an encrypted true for
+both cases. Therefore, we can skip the re-evaluation of `content[0] == a` and
+simply copy the result from the first evaluation over. This optimization
+involved maintaing a cache of known expression evaluations' results, and reusing
+those where possible.
 
 # How to apply the example implementation in your own code
 

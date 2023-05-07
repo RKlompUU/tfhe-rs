@@ -3,7 +3,6 @@ use std::rc::Rc;
 use crate::integer::{RadixCiphertextBig, ServerKey};
 
 use crate::regex::parser::u8_to_char;
-use crate::regex::ciphertext::create_trivial_radix;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Executed {
@@ -204,7 +203,7 @@ impl Execution {
 
     pub(crate) fn ct_constant(&self, c: u8) -> ExecutedResult {
         (
-            create_trivial_radix(&self.sk, c as u64),
+            self.sk.create_trivial_radix(c as u64, 4),
             Executed::Constant { c },
         )
     }

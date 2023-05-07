@@ -73,8 +73,7 @@ regex = ["integer", "dep:combine", "dep:anyhow"]
 internal-keycache = ["lazy_static", "fs2", "bincode"]
 
 # Experimental section
-experimental = ["experimental-multi_bit_pbs"]
-experimental-multi_bit_pbs = []
+experimental = []
 experimental-force_fft_algo_dif4 = []
 # End experimental section
 
@@ -96,8 +95,6 @@ boolean-client-js-wasm-api = ["boolean", "__wasm_api"]
 shortint-client-js-wasm-api = ["shortint", "__wasm_api"]
 
 nightly-avx512 = ["concrete-fft/nightly", "pulp/nightly"]
-
-gen_test_keys = []
 
 # Enable the x86_64 specific accelerated implementation of the random generator for the default
 # backend

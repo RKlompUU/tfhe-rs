@@ -41,7 +41,6 @@ pub fn has_match(
     Ok(res)
 }
 
-// this is a list monad procedure
 fn build_branches(
     content: &[RadixCiphertextBig],
     re: &RegExpr,
@@ -219,38 +218,13 @@ mod tests {
     use test_case::test_case;
 
     use crate::integer::{ServerKey, RadixClientKey};
-    use crate::regex::ciphertext::{create_trivial_radix, gen_keys, StringCiphertext};
+    use crate::regex::ciphertext::{encrypt_str, gen_keys, StringCiphertext};
     use bincode;
     use lazy_static::lazy_static;
     use std::io::Write;
 
     lazy_static! {
-        pub static ref KEYS: (RadixClientKey, ServerKey) = setup_test_keys();
-    }
-
-    fn setup_test_keys() -> (RadixClientKey, ServerKey) {
-        #[cfg(feature = "gen_test_keys")]
-        generate_test_keys();
-        read_test_keys()
-    }
-
-    #[allow(dead_code)]
-    fn generate_test_keys() {
-        let (client_key, _) = gen_keys();
-
-        let mut serialized_data = Vec::new();
-        bincode::serialize_into(&mut serialized_data, &client_key).unwrap();
-        let mut file = std::fs::File::create("test_data/client_key")
-            .unwrap();
-        file.write_all(&serialized_data).unwrap();
-    }
-
-    fn read_test_keys() -> (RadixClientKey, ServerKey) {
-        let serialized_data = std::fs::read("test_data/client_key").unwrap();
-        let client_key: RadixClientKey = bincode::deserialize_from(serialized_data.as_slice()).unwrap();
-
-        let server_key = ServerKey::new(&client_key);
-        (client_key, server_key)
+        pub static ref KEYS: (RadixClientKey, ServerKey) = gen_keys();
     }
 
     #[test_case("ab", "/ab/", 1)]
@@ -279,10 +253,13 @@ mod tests {
     #[test_case("de", "/^ab|cd|de$/", 1 ; "multiple or")]
     #[test_case(" de", "/^ab|cd|de$/", 0 ; "multiple or nests below ^")]
     fn test_has_match(content: &str, pattern: &str, exp: u64) {
+        // it would be more correct to encrypt the content properly with the
+        // client key, however in order to significantly speed up these test
+        // cases we're encoding them trivially into ciphertext
         let ct_content: StringCiphertext = content
             .as_bytes()
             .iter()
-            .map(|byte| create_trivial_radix(&KEYS.1, *byte as u64))
+            .map(|byte| KEYS.1.create_trivial_radix(*byte as u64, 4))
             .collect();
         let ct_res = has_match(&KEYS.1, &ct_content, pattern).unwrap();
 

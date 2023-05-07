@@ -85,7 +85,7 @@ Operator | Example | Semantics
 `..` | a .. b | match on a range of alphabetically ordered characters from a to (and including) b
 ` ` | a b | sequencing; match on a and then on b
 
-In the case of the example PME the grammar is as follows (notice the unquoted ? and quoted ? etc., the unqouted are Grammar operators and the quoted are characters we are matching in the parsing)
+In the case of the example PME the grammar is as follows (notice the unquoted ? and quoted ? etc., the unquoted are Grammar operators and the quoted are characters we are matching in the parsing)
 ```
 Start := '/' '^'? Regex '$'? '/' Modifier?
 
@@ -204,9 +204,10 @@ With both the Grammar and the datastructure to parse into defined, we can now
 start implementing the actual parsing logic. There are multiple ways this can
 be done. For example there exist tools that can automatically generate parser
 code by giving it the Grammar definition (these are called parser generators).
-However, I prefer to write parsers myself with a parser combinator library, as
-in my opinion the behavior in runtime is better understandable of these than of
-parsers that were automatically generated.
+However, I prefer to write parsers myself with a parser combinator library.
+Because, in my opinion the behavior in runtime is better understandable of
+parsers constructed with a parser combinator library than of parsers that were
+generated with a parser generator tool.
 
 In Rust there exist a number of popular parser combinator libraries, I went
 with `combine` but any other would work just as well. Choose whichever appeals
@@ -400,6 +401,7 @@ the following set of FHE operations:
 4. bitand (bitwise AND, used for sequencing multiple regex components)
 5. bitor (bitwise OR, used for folding multiple possible execution variants'
    results into a single result)
+6. bitxor (bitwise XOR, used for the not logic in ranges)
 
 ### Optimizations
 
@@ -460,13 +462,13 @@ content can only contain ascii characters, if there are any non-ascii symbols
 present `encrypt_str` below will throw an error:
 
 ```rust
-let ct_content = encrypt_str(&client_key, 'some body of text')?;
+let ct_content = encrypt_str(&client_key, "some body of text")?;
 ```
 
 Apply your regex pattern to the generated ciphertext content:
 
 ```rust
-let ct_res = has_match(&server_key, &ct_content, '/^ab|cd$/')?;
+let ct_res = has_match(&server_key, &ct_content, "/^ab|cd$/")?;
 ```
 
 The result (`ct_res` here) is an encrypted ciphertext and must therefore first

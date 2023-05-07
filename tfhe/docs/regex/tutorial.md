@@ -1,16 +1,35 @@
 # FHE Regex Pattern Matching Tutorial
 
-This tutorial explains what went into building the example Regex pattern matching engine.
+This tutorial explains how to build a Regex pattern matching engine where the
+content that is matched against is ciphertext.
 
-Regexes are
+A regex Pattern Matching Engine (PME) is an essential tool for programmers. It allows
+to perform complex searches on a content. The less powerful simple search on
+string can only find matches of the exact given sequence of characters (eg,
+your Browser's default search function does this). Regex PME are more powerful,
+it allows to search on certain structures of text (where a structure may take
+form in multiple possible sequences of characters). The structure to be
+searched for is defined with the regex, a very concise language. Some example
+regexes to give some idea of what is possible:
 
-There are two main components identifiable in a pattern matching engine (PME):
+Regex | Semantics
+--- | ---
+/abc/ | Searches for the sequence `abc`
+/^abc/ | Searches for the sequence `abc` at the beginning of the content
+/a?bc/ | Searches for sequences `abc` and `bc`
+/ab\|c+d/ | Searches for sequences of `ab` and `c` repeated 1 ore more times followed by `d`
+
+Regexes are powerful enough to be able to express structures like email address
+formats. Capability like this is what makes regexes useful for many programming
+solutions.
+
+There are two main components identifiable in a PME:
 1. the pattern that is to be matched has to be parsed, this translates from a textual representation into a recursively structured object (an Abstract Syntax Tree, or AST)
 2. this AST has to then be applied to the text that is to be matched against, resulting in a yes or no to whether the pattern matched (and in the case of our FHE implementation, this result is an encrypted yes or an encrypted no)
 
 Parsing is a well understood problem. There are a couple of different approaches possible here.
 Regardless of the approach chosen, it starts with figuring out what the language is that we want to support. That is, what are the kinds of sentences that we want our regex language include?
-A few example sentences we definitely want to support are for example: `/a/`, `/a?bc/`, `/^ab$/`, `/ab|cd/`, however example sentences don't suffice here as a specification because they can never be exhaustive (they're endless). We need something to specify _exactly_ the full set of sentences our language suppoorts.
+A few example sentences we definitely want to support are for example: `/a/`, `/a?bc/`, `/^ab$/`, `/ab|cd/`, however example sentences don't suffice here as a specification because they can never be exhaustive (they're endless). We need something to specify _exactly_ the full set of sentences our language supports.
 There exists a language that can help us describe exactly what our own language's structure is: Grammars.
 
 ## The Grammar and Datastructure
@@ -151,7 +170,7 @@ Pattern | RegExpr value
 `/av\|d?/` | `RegExpr::Either { l_re: Box::new(RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'v' }] }), r_re: Box::new(RegExpr::Optional { opt_re: Box::new(RegExpr::Char { c: 'd' }) }) }`
 `/(av\|d)?/` | `RegExpr::Optional { opt_re: Box::new(RegExpr::Either { l_re: Box::new(RegExpr::Seq { re_xs: vec![RegExpr::Char { c: 'a' }, RegExpr::Char { c: 'v' }] }), r_re: Box::new(RegExpr::Char { c: 'd' }) }) }`
 
-With both the Grammar and the datastructure to parse into defined, we can now start implementing the actual parsing logic. There are many ways this can be done. For example there exist tools that can automatically generate code by giving it the Grammar definition (these are called parser generators). However, I prefer to write parsers myself with a parser combinator library, as in my opinion the behavior in runtime is better understandable of these than of parsers that were automatically generated.
+With both the Grammar and the datastructure to parse into defined, we can now start implementing the actual parsing logic. There are multiple ways this can be done. For example there exist tools that can automatically generate code by giving it the Grammar definition (these are called parser generators). However, I prefer to write parsers myself with a parser combinator library, as in my opinion the behavior in runtime is better understandable of these than of parsers that were automatically generated.
 
 In Rust there exist a number of popular parser combinator libraries, I went with `combine` but any other would work just as well. Choose whichever appeals the most to you. The implementation of our regex parser will differ significantly depending on the approach you choose and as such I think it is better to omit this part from the tutorial. You may look at the parser code in the example implementation to get an idea on how this could be done.
 
@@ -159,10 +178,12 @@ In Rust there exist a number of popular parser combinator libraries, I went with
 
 The next challenge is to build the execution engine, where we take a RegExpr
 value and recurse into it to apply the necessary actions on the encrypted content.
+We first have to define how we actually encode our content into an encrypted state.
+Once that is defined we can start working on how we will execute our RegExpr onto
+the encrypted content.
 
 ### Encoding and Encrypting the Content
 
-We first have to define how we actually encode our content into an encrypted state.
 It is not possible to encrypt the entire content into a single encrypted value,
 we can only encrypt numbers and do operations on those encrypted numbers with FHE.
 Therefore we have to find a scheme where we encode the content into a sequence of
